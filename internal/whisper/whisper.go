@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 
@@ -222,17 +223,35 @@ func (s *whisperSession) Finals() <-chan string {
 }
 
 func (s *whisperSession) Close() error {
+	// Signal done first
 	close(s.done)
 
-	// Process any remaining samples
+	// Wait for any ongoing processing to finish
 	s.mu.Lock()
+	for s.processing {
+		s.mu.Unlock()
+		time.Sleep(10 * time.Millisecond)
+		s.mu.Lock()
+	}
+
 	hasRemaining := len(s.samples) > 0
 	s.mu.Unlock()
 
+	// Process any remaining samples if we have them
 	if hasRemaining {
 		s.processChunk()
 	}
 
+	// Wait again to ensure final processChunk completes
+	s.mu.Lock()
+	for s.processing {
+		s.mu.Unlock()
+		time.Sleep(10 * time.Millisecond)
+		s.mu.Lock()
+	}
+	s.mu.Unlock()
+
+	// Now safe to close channels
 	close(s.partials)
 	close(s.finals)
 
