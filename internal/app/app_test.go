@@ -87,6 +87,20 @@ func (m *mockInjector) PasteOrType(ctx context.Context, text string) error {
 	return nil
 }
 
+// waitForDictationState waits for the app to reach the desired dictation state
+// within the timeout. Returns true if the desired state was reached, false otherwise.
+func waitForDictationState(t *testing.T, app *App, wantDictating bool, timeout time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if app.IsDictating() == wantDictating {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
+}
+
 func TestToggleModeKeyPress(t *testing.T) {
 	cfg := &config.Config{
 		Mode: config.ModeToggle,
@@ -130,17 +144,8 @@ func TestToggleModeKeyPress(t *testing.T) {
 	app.OnHotkey(true)
 
 	// Wait for dictation to stop
-	var stopped bool
-	for i := 0; i < 100; i++ { // Poll for 1 second
-		if !app.IsDictating() {
-			stopped = true
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	if !stopped {
-		t.Error("App should have stopped dictating after second key press")
+	if !waitForDictationState(t, app, false, 1*time.Second) {
+		t.Fatal("App should have stopped dictating after second key press")
 	}
 }
 
@@ -181,17 +186,8 @@ func TestPushToTalkModeKeyPress(t *testing.T) {
 	app.OnHotkey(false)
 
 	// Wait for dictation to stop
-	var stopped bool
-	for i := 0; i < 100; i++ { // Poll for 1 second
-		if !app.IsDictating() {
-			stopped = true
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	if !stopped {
-		t.Error("App should have stopped dictating after key release")
+	if !waitForDictationState(t, app, false, 1*time.Second) {
+		t.Fatal("App should have stopped dictating after key release")
 	}
 }
 

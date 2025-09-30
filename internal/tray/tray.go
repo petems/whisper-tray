@@ -144,18 +144,19 @@ func (u *UI) buildDeviceMenu() {
 			for {
 				select {
 				case <-menuItem.ClickedCh:
-					// Uncheck all other items
-					for id, itm := range deviceItems {
-						if id != deviceID {
-							itm.Uncheck()
+					if err := u.app.SetDevice(deviceID); err != nil {
+						u.log.Error().Err(err).Msg("Failed to change audio device")
+					} else {
+						// Uncheck all other items
+						for id, itm := range deviceItems {
+							if id != deviceID {
+								itm.Uncheck()
+							}
 						}
+						// Check this item
+						menuItem.Check()
+						u.log.Info().Str("device", deviceName).Msg("Changed audio device")
 					}
-					// Check this item
-					menuItem.Check()
-					u.cfg.Audio.DeviceID = deviceID
-					u.cfg.Save()
-					u.log.Info().Str("device", deviceName).Msg("Changed audio device")
-					u.app.SetDevice(deviceID)
 				case <-u.quitCh:
 					return
 				}
@@ -221,19 +222,19 @@ func (u *UI) buildModelMenu() {
 			for {
 				select {
 				case <-menuItem.ClickedCh:
-					// Uncheck all other items
-					for mdl, itm := range modelItems {
-						if mdl != m {
-							itm.Uncheck()
+					if err := u.app.SetModel(m); err != nil {
+						u.log.Error().Err(err).Msg("Failed to change Whisper model")
+					} else {
+						// Uncheck all other items
+						for mdl, itm := range modelItems {
+							if mdl != m {
+								itm.Uncheck()
+							}
 						}
+						// Check this item
+						menuItem.Check()
+						u.log.Info().Str("to", m).Msg("Changed Whisper model")
 					}
-					// Check this item
-					menuItem.Check()
-					oldModel := u.cfg.Whisper.Model
-					u.cfg.Whisper.Model = m
-					u.cfg.Save()
-					u.log.Info().Str("from", oldModel).Str("to", m).Msg("Changed Whisper model")
-					u.app.SetModel(m)
 				case <-u.quitCh:
 					return
 				}
