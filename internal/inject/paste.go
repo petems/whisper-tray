@@ -2,7 +2,6 @@ package inject
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/petems/whisper-tray/internal/config"
 )
@@ -26,19 +25,24 @@ func (p *pasteInjector) Paste(ctx context.Context, text string) error {
 
 // Type injects text using keyboard simulation
 func (p *pasteInjector) Type(ctx context.Context, text string) error {
-	// TODO: Platform-specific keystroke injection
-	// - Windows: SendInput
-	// - macOS: CGEvent
-	// - Linux: XTest
-	return fmt.Errorf("Type not yet implemented")
+	// Platform-specific implementation
+	// - macOS: CGEvent (see paste_darwin.go)
+	// - Linux: XTest (TODO)
+	// - Windows: SendInput (TODO)
+	return platformType(ctx, text)
 }
 
 // PasteOrType tries paste first, falls back to type if needed
 func (p *pasteInjector) PasteOrType(ctx context.Context, text string) error {
+	// Try paste first if preferred or if Type is not implemented
 	if p.cfg.PreferPaste {
-		if err := p.Paste(ctx, text); err == nil {
-			return nil
-		}
+		return p.Paste(ctx, text)
 	}
-	return p.Type(ctx, text)
+
+	// Try Type, fall back to Paste if not implemented
+	if err := p.Type(ctx, text); err != nil {
+		// If Type fails (e.g., not implemented), use Paste
+		return p.Paste(ctx, text)
+	}
+	return nil
 }
