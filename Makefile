@@ -11,6 +11,15 @@ LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT)
 
 all: whisper-cpp build-mac
 
+# Detect platform
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+    BUILD_TARGET := build-linux
+endif
+ifeq ($(UNAME_S),Darwin)
+    BUILD_TARGET := build-mac
+endif
+
 # Setup whisper.cpp
 whisper-cpp:
 	@echo "Setting up whisper.cpp..."
@@ -30,6 +39,24 @@ build-mac: whisper-cpp
 	CGO_LDFLAGS="-L$(shell pwd)/vendor/whisper.cpp -lwhisper -framework Accelerate -framework Foundation -framework Metal -framework MetalKit" \
 	go build -mod=mod -ldflags="$(LDFLAGS)" -o bin/$(BINARY_NAME) ./cmd/whisper-tray
 	@echo "✓ Binary built: bin/$(BINARY_NAME) ($(VERSION) @ $(COMMIT))"
+
+# Build for Linux
+build-linux: whisper-cpp
+	@echo "Building for Linux..."
+	CGO_ENABLED=1 \
+	CGO_CFLAGS="-I$(shell pwd)/vendor/whisper.cpp" \
+	CGO_LDFLAGS="-L$(shell pwd)/vendor/whisper.cpp -lwhisper" \
+	go build -mod=mod -ldflags="$(LDFLAGS)" -o bin/$(BINARY_NAME) ./cmd/whisper-tray
+	@echo "✓ Binary built: bin/$(BINARY_NAME) ($(VERSION) @ $(COMMIT))"
+
+# Build for Windows
+build-windows: whisper-cpp
+	@echo "Building for Windows..."
+	CGO_ENABLED=1 \
+	CGO_CFLAGS="-I$(shell pwd)/vendor/whisper.cpp" \
+	CGO_LDFLAGS="-L$(shell pwd)/vendor/whisper.cpp -lwhisper" \
+	go build -mod=mod -ldflags="$(LDFLAGS)" -o bin/$(BINARY_NAME).exe ./cmd/whisper-tray
+	@echo "✓ Binary built: bin/$(BINARY_NAME).exe ($(VERSION) @ $(COMMIT))"
 
 # Build macOS app bundle
 build-mac-app: build-mac
@@ -78,10 +105,29 @@ install-deps:
 	go mod tidy
 	@echo "✓ Dependencies installed"
 
-# Run tests
-test:
+# Run tests (requires whisper.cpp to be built)
+test: whisper-cpp
 	@echo "Running tests..."
-	go test -v ./...
+	CGO_ENABLED=1 \
+	CGO_CFLAGS="-I$(shell pwd)/vendor/whisper.cpp" \
+	CGO_LDFLAGS="-L$(shell pwd)/vendor/whisper.cpp -lwhisper -framework Accelerate -framework Foundation -framework Metal -framework MetalKit" \
+	go test -mod=mod -v ./...
+
+# Run tests on Linux
+test-linux: whisper-cpp
+	@echo "Running tests (Linux)..."
+	CGO_ENABLED=1 \
+	CGO_CFLAGS="-I$(shell pwd)/vendor/whisper.cpp" \
+	CGO_LDFLAGS="-L$(shell pwd)/vendor/whisper.cpp -lwhisper" \
+	go test -mod=mod -v ./...
+
+# Run tests on Windows
+test-windows: whisper-cpp
+	@echo "Running tests (Windows)..."
+	CGO_ENABLED=1 \
+	CGO_CFLAGS="-I$(shell pwd)/vendor/whisper.cpp" \
+	CGO_LDFLAGS="-L$(shell pwd)/vendor/whisper.cpp -lwhisper" \
+	go test -mod=mod -v ./...
 
 # Clean build artifacts
 clean:

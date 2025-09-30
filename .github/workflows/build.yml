@@ -69,32 +69,34 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
-    - name: Run tests
-      run: go test -mod=mod -v ./...
-
-    - name: Build application
-      run: make build-mac
+    - name: Run tests (macOS)
       if: runner.os == 'macOS'
+      run: make test
+      shell: bash
+
+    - name: Run tests (Linux)
+      if: runner.os == 'Linux'
+      run: make test-linux
+      shell: bash
+
+    - name: Run tests (Windows)
+      if: runner.os == 'Windows'
+      run: make test-windows
+      shell: bash
+
+    - name: Build application (macOS)
+      if: runner.os == 'macOS'
+      run: make build-mac
       shell: bash
 
     - name: Build application (Linux)
       if: runner.os == 'Linux'
-      env:
-        CGO_ENABLED: 1
-      run: |
-        CGO_CFLAGS="-I$(pwd)/vendor/whisper.cpp" \
-        CGO_LDFLAGS="-L$(pwd)/vendor/whisper.cpp -lwhisper" \
-        go build -mod=mod -ldflags="-s -w -X main.Version=${{ github.ref_name }} -X main.Commit=${{ github.sha }}" \
-        -o bin/${{ matrix.artifact }} ./cmd/whisper-tray
+      run: make build-linux
       shell: bash
 
     - name: Build application (Windows)
       if: runner.os == 'Windows'
-      env:
-        CGO_ENABLED: 1
-      run: |
-        go build -mod=mod -ldflags="-s -w -X main.Version=${{ github.ref_name }} -X main.Commit=${{ github.sha }}" \
-        -o bin/${{ matrix.artifact }} ./cmd/whisper-tray
+      run: make build-windows
       shell: bash
 
     - name: Upload artifacts
