@@ -6,7 +6,9 @@ import (
 
 	"github.com/petems/whisper-tray/internal/app"
 	"github.com/petems/whisper-tray/internal/config"
+	"github.com/petems/whisper-tray/internal/logging"
 	"github.com/getlantern/systray"
+	"github.com/rs/zerolog"
 )
 
 type UI struct {
@@ -14,6 +16,7 @@ type UI struct {
 	cfg     *config.Config
 	version string
 	commit  string
+	log     zerolog.Logger
 
 	// Menu items
 	mStartStop   *systray.MenuItem
@@ -42,11 +45,13 @@ func (u *UI) SetError() {
 }
 
 func New(application *app.App, cfg *config.Config, version, commit string) *UI {
+	log := logging.New()
 	return &UI{
 		app:     application,
 		cfg:     cfg,
 		version: version,
 		commit:  commit,
+		log:     log,
 	}
 }
 
@@ -115,36 +120,65 @@ func (u *UI) buildDeviceMenu() {
 	// Get devices from app
 	devices, err := u.app.ListDevices()
 	if err != nil {
+		u.log.Error().Err(err).Msg("Failed to list audio devices")
 		return
 	}
+
+	deviceItems := make(map[string]*systray.MenuItem)
 
 	for _, dev := range devices {
 		item := u.mDevices.AddSubMenuItem(dev.Name, "")
 		if dev.Default {
 			item.Check()
 		}
+		deviceItems[dev.ID] = item
 
-		go func(deviceID string, menuItem *systray.MenuItem) {
+		go func(deviceID, deviceName string, menuItem *systray.MenuItem) {
 			for {
 				<-menuItem.ClickedCh
+				// Uncheck all other items
+				for id, itm := range deviceItems {
+					if id != deviceID {
+						itm.Uncheck()
+					}
+				}
+				// Check this item
+				menuItem.Check()
+				u.cfg.Audio.DeviceID = deviceID
+				u.cfg.Save()
+				u.log.Info().Str("device", deviceName).Msg("Changed audio device")
 				u.app.SetDevice(deviceID)
 			}
-		}(dev.ID, item)
+		}(dev.ID, dev.Name, item)
 	}
 }
 
 func (u *UI) buildModelMenu() {
 	models := []string{"base.en", "small.en", "medium.en", "large-v3"}
+	modelItems := make(map[string]*systray.MenuItem)
 
 	for _, model := range models {
 		item := u.mModels.AddSubMenuItem(model, "")
 		if model == u.cfg.Whisper.Model {
 			item.Check()
 		}
+		modelItems[model] = item
 
 		go func(m string, menuItem *systray.MenuItem) {
 			for {
 				<-menuItem.ClickedCh
+				// Uncheck all other items
+				for mdl, itm := range modelItems {
+					if mdl != m {
+						itm.Uncheck()
+					}
+				}
+				// Check this item
+				menuItem.Check()
+				oldModel := u.cfg.Whisper.Model
+				u.cfg.Whisper.Model = m
+				u.cfg.Save()
+				u.log.Info().Str("from", oldModel).Str("to", m).Msg("Changed Whisper model")
 				u.app.SetModel(m)
 			}
 		}(model, item)
@@ -152,6 +186,7 @@ func (u *UI) buildModelMenu() {
 }
 
 func (u *UI) toggleMode() {
+	oldMode := u.cfg.Mode
 	if u.cfg.Mode == "PushToTalk" {
 		u.cfg.Mode = "Toggle"
 		u.mMode.SetTitle("Mode: Toggle")
@@ -161,14 +196,18 @@ func (u *UI) toggleMode() {
 		u.mMode.SetTitle("Mode: Push-to-Talk")
 		u.app.SetMode("PushToTalk")
 	}
+	u.cfg.Save()
+	u.log.Info().Str("from", oldMode).Str("to", u.cfg.Mode).Msg("Changed mode")
 }
 
 func (u *UI) togglePastePrefer() {
 	u.cfg.Inject.PreferPaste = !u.cfg.Inject.PreferPaste
 	if u.cfg.Inject.PreferPaste {
 		u.mPastePrefer.Check()
+		u.log.Info().Msg("Enabled prefer paste (Cmd+V)")
 	} else {
 		u.mPastePrefer.Uncheck()
+		u.log.Info().Msg("Disabled prefer paste (using keyboard typing)")
 	}
 	u.cfg.Save()
 }
@@ -177,8 +216,10 @@ func (u *UI) toggleRunAtLogin() {
 	u.cfg.RunAtLogin = !u.cfg.RunAtLogin
 	if u.cfg.RunAtLogin {
 		u.mRunAtLogin.Check()
+		u.log.Info().Msg("Enabled run at login")
 	} else {
 		u.mRunAtLogin.Uncheck()
+		u.log.Info().Msg("Disabled run at login")
 	}
 	u.cfg.Save()
 	// TODO: Platform-specific login item registration
