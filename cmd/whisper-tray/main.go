@@ -12,6 +12,7 @@ import (
 	"github.com/petems/whisper-tray/internal/hotkey"
 	"github.com/petems/whisper-tray/internal/inject"
 	"github.com/petems/whisper-tray/internal/logging"
+	"github.com/petems/whisper-tray/internal/permissions"
 	"github.com/petems/whisper-tray/internal/tray"
 	"github.com/petems/whisper-tray/internal/whisper"
 )
@@ -34,6 +35,11 @@ func main() {
 
 	// Initialize logger with configured level
 	log := logging.NewWithLevel(cfg.LogLevel)
+
+	// macOS requires explicit microphone + accessibility approval before capture or hotkeys work
+	if err := permissions.EnsurePermissions(); err != nil {
+		log.Fatal().Err(err).Msg("Required permissions not granted")
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
