@@ -9,6 +9,7 @@ WhisperTray is a Go 1.22 app with the entry point in `cmd/whisper-tray`. Cross-p
 - `make all` or `make build` runs the full pipeline, ensuring `libwhisper.a` is rebuilt.
 - `make run` builds then launches `./bin/whisper-tray`.
 - `make clean` removes `bin/` and the vendored dependency when you need a fresh setup.
+- `make test` is the default test entrypoint (as codified in `CLAUDE.md`); it autodetects the platform and supports `TEST=...` to scope packages.
 
 ## Coding Style & Naming Conventions
 Follow idiomatic Go: use tabs for indentation and keep identifiers in MixedCaps (types) or lowerCamelCase (funcs/vars). Always run `gofmt`, and prefer `goimports` to maintain imports. Log through `internal/logging` and zerolog structured fields; use short `ctx` parameters and package-local structs for cohesion. Configuration lives in `internal/config` and should be marshalled via the existing helpers.

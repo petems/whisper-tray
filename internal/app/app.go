@@ -48,13 +48,13 @@ type App struct {
 	log    zerolog.Logger
 	status StatusUpdater
 
-	mu               sync.Mutex
-	dictating        bool
-	session          whisper.Session
-	audioCtx         context.Context
-	audioStop        context.CancelFunc
-	textBuffer       []string
-	collectorDone    chan struct{}
+	mu            sync.Mutex
+	dictating     bool
+	session       whisper.Session
+	audioCtx      context.Context
+	audioStop     context.CancelFunc
+	textBuffer    []string
+	collectorDone chan struct{}
 }
 
 func New(cfg Config) *App {
@@ -154,7 +154,7 @@ func (a *App) startDictationLocked() {
 	}()
 
 	// Collect results
-	go a.collectTranscripts()
+	go a.collectTranscripts(a.collectorDone)
 }
 
 func (a *App) stopAndInjectLocked() {
@@ -222,11 +222,11 @@ func (a *App) stopAndInjectLocked() {
 	}
 }
 
-func (a *App) collectTranscripts() {
+func (a *App) collectTranscripts(done chan struct{}) {
 	a.log.Debug().Msg("collectTranscripts started")
 	defer func() {
 		a.log.Debug().Msg("collectTranscripts exiting, signaling done")
-		close(a.collectorDone)
+		close(done)
 	}()
 
 	partials := a.session.Partials()
