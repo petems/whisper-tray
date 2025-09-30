@@ -3,6 +3,8 @@ package tray
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/petems/whisper-tray/internal/app"
 	"github.com/petems/whisper-tray/internal/config"
@@ -158,7 +160,13 @@ func (u *UI) buildModelMenu() {
 	modelItems := make(map[string]*systray.MenuItem)
 
 	for _, model := range models {
-		item := u.mModels.AddSubMenuItem(model, "")
+		// Check if model is downloaded
+		modelTitle := model
+		if u.isModelDownloaded(model) {
+			modelTitle += " (downloaded)"
+		}
+
+		item := u.mModels.AddSubMenuItem(modelTitle, "")
 		if model == u.cfg.Whisper.Model {
 			item.Check()
 		}
@@ -237,6 +245,13 @@ func (u *UI) showAbout() {
 
 func (u *UI) onExit() {
 	// Cleanup
+}
+
+// isModelDownloaded checks if a Whisper model file exists
+func (u *UI) isModelDownloaded(model string) bool {
+	modelPath := filepath.Join(config.ModelsPath(), model+".bin")
+	_, err := os.Stat(modelPath)
+	return err == nil
 }
 
 // updateStatus sets the tray title with microphone emoji and status indicator
