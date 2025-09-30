@@ -3,7 +3,8 @@
 package permissions
 
 /*
-#cgo LDFLAGS: -framework AVFoundation -framework Cocoa
+#cgo CFLAGS: -x objective-c
+#cgo LDFLAGS: -framework AVFoundation -framework Cocoa -lobjc
 #import <AVFoundation/AVFoundation.h>
 #import <Cocoa/Cocoa.h>
 
