@@ -1,16 +1,14 @@
-# .github/workflows/build.yml
-name: Build WhisperTray
+# .github/workflows/test.yml
+name: Test
 
 on:
   push:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-  release:
-    types: [ created ]
 
 jobs:
-  build:
+  test:
     strategy:
       fail-fast: false
       matrix:
@@ -18,18 +16,12 @@ jobs:
         include:
           - os: ubuntu-latest
             goos: linux
-            goarch: amd64
-            artifact: whisper-tray
             required: false
           - os: macos-latest
             goos: darwin
-            goarch: arm64
-            artifact: whisper-tray
             required: true
           - os: windows-latest
             goos: windows
-            goarch: amd64
-            artifact: whisper-tray.exe
             required: false
 
     runs-on: ${{ matrix.os }}
@@ -69,29 +61,6 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
-    - name: Build application
-      run: make build
+    - name: Run tests
+      run: make test
       shell: bash
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: whisper-tray-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: bin/*
-
-    - name: Create release archive
-      if: github.event_name == 'release'
-      run: |
-        cd bin
-        if [ "${{ runner.os }}" == "Windows" ]; then
-          7z a whisper-tray-${{ matrix.goos }}-${{ matrix.goarch }}.zip *
-        else
-          tar czf whisper-tray-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz *
-        fi
-      shell: bash
-
-    - name: Upload release assets
-      if: github.event_name == 'release'
-      uses: softprops/action-gh-release@v1
-      with:
-        files: ./bin/whisper-tray-${{ matrix.goos }}-${{ matrix.goarch }}.*
