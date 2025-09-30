@@ -475,38 +475,48 @@ func TestDictationFlow(t *testing.T) {
 
 ## Development Phases
 
-### Phase 1: MVP (Current Priority)
-- [ ] Basic audio capture working
-- [ ] Whisper transcription functional
-- [ ] Simple hotkey support (single platform first)
-- [ ] Text injection via clipboard-paste
-- [ ] System tray icon
-- [ ] Config loading/saving
+### Phase 1: MVP ✅ COMPLETE
+- [x] Basic audio capture working (PortAudio)
+- [x] Whisper transcription functional (whisper.cpp with Metal)
+- [x] Simple hotkey support (macOS Control+Space)
+- [x] Text injection via clipboard-paste AND keyboard typing
+- [x] System tray icon with emoji status indicators
+- [x] Config loading/saving (JSON persistence)
+- [x] Model auto-download with progress tracking
+- [x] Multiple model support (base.en through large-v3-turbo)
+- [x] Device selection UI in tray menu
+- [x] Push-to-talk AND toggle modes
+- [x] Settings UI in tray with visual feedback
+- [x] Structured logging with zerolog
 
-### Phase 2: Cross-Platform Core
-- [ ] All three platform-specific hotkey handlers
-- [ ] Permissions system for all platforms
-- [ ] Unified logging infrastructure
-- [ ] Device selection UI
-- [ ] Model auto-download with verification
+### Phase 2: Cross-Platform Core (In Progress)
+- [x] macOS hotkey handler (Control+Space with Carbon)
+- [x] macOS permissions system (Microphone + Accessibility)
+- [x] Unified logging infrastructure (platform-specific paths)
+- [ ] Linux hotkey handler (X11 implementation exists, needs testing)
+- [ ] Windows hotkey handler (needs implementation)
+- [ ] Linux audio/inject testing
+- [ ] Windows audio/inject testing
+- [x] GitHub Actions CI (macOS working, Linux/Windows experimental)
 
 ### Phase 3: Polish & Distribution
 - [ ] Application bundling (macOS .app, Windows installer, Linux packages)
 - [ ] Auto-updater
-- [ ] Settings UI refinement
+- [ ] Run at login implementation (UI exists, needs platform code)
+- [ ] Icon design and assets
 - [ ] Multiple language support
-- [ ] Model management (download/switch Whisper models)
-- [ ] CI/CD for all platforms
+- [ ] Release automation
 
 ### Phase 4: Advanced Features (Post-MVP)
 - [ ] Voice activity detection (VAD)
 - [ ] Live typing mode (streaming partials)
 - [ ] Command mode ("period", "new line", custom macros)
 - [ ] Custom vocabulary
-- [ ] Push-to-talk vs toggle modes
 - [ ] Recording history/playback
 - [ ] Auto language detection
 - [ ] Noise suppression (RNNoise) pre-filter
+- [ ] Model SHA256 verification
+- [ ] Resumable downloads
 
 ## Build Considerations
 
