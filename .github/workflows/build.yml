@@ -1,0 +1,118 @@
+# .github/workflows/build.yml
+name: Build WhisperMatic
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  release:
+    types: [ created ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact: whispermatic
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact: whispermatic
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact: whispermatic.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+        cache: true
+
+    - name: Install Linux dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y portaudio19-dev libx11-dev xorg-dev libxtst-dev
+
+    - name: Install macOS dependencies
+      if: runner.os == 'macOS'
+      run: |
+        brew install portaudio
+
+    - name: Cache whisper.cpp
+      uses: actions/cache@v3
+      with:
+        path: vendor/whisper.cpp
+        key: ${{ runner.os }}-whisper-${{ hashFiles('**/Makefile') }}
+
+    - name: Build whisper.cpp
+      run: |
+        if [ ! -d "vendor/whisper.cpp" ]; then
+          git clone --depth 1 https://github.com/ggerganov/whisper.cpp vendor/whisper.cpp
+        fi
+        cd vendor/whisper.cpp
+        make libwhisper.a
+      shell: bash
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run tests
+      run: go test -v ./...
+
+    - name: Build application
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 1
+      run: |
+        go build -ldflags="-s -w" -o bin/${{ matrix.artifact }} ./cmd/whispermatic
+
+    - name: Create macOS app bundle
+      if: runner.os == 'macOS'
+      run: |
+        mkdir -p bin/WhisperMatic.app/Contents/MacOS
+        mkdir -p bin/WhisperMatic.app/Contents/Resources
+        mv bin/whispermatic bin/WhisperMatic.app/Contents/MacOS/
+        cp resources/Info.plist bin/WhisperMatic.app/Contents/
+        cp resources/icon.icns bin/WhisperMatic.app/Contents/Resources/
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: whispermatic-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: bin/*
+
+    - name: Create release archive
+      if: github.event_name == 'release'
+      run: |
+        cd bin
+        if [ "${{ runner.os }}" == "Windows" ]; then
+          7z a whispermatic-${{ matrix.goos }}-${{ matrix.goarch }}.zip *
+        else
+          tar czf whispermatic-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz *
+        fi
+      shell: bash
+
+    - name: Upload release assets
+      if: github.event_name == 'release'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./bin/whispermatic-${{ matrix.goos }}-${{ matrix.goarch }}.*
+        asset_name: whispermatic-${{ matrix.goos }}-${{ matrix.goarch }}
+        asset_content_type: application/octet-stream

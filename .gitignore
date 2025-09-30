@@ -1,0 +1,47 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+
+# Output of go build
+whisper-tray
+*.app
+
+# Go workspace file
+go.work
+
+# Vendor
+vendor/whisper.cpp/
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+
+# Models (downloaded at runtime)
+*.bin
+models/
+
+# Metal shader (copied from vendor at runtime)
+ggml-metal.metal
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Backup files
+*.bak
+
+# Temp files
+*.tmp
+.cache/
