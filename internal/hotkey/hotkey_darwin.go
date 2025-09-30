@@ -22,25 +22,104 @@ static OSStatus hotkeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
     return noErr;
 }
 
+// Hotkey registration state (stored for cleanup)
+typedef struct {
+    EventHandlerRef handlerRef;
+    EventHandlerUPP handlerUPP;
+    EventHotKeyRef hotKeyRef;
+    int registered;
+} HotkeyState;
+
+static HotkeyState gHotkeyState = {NULL, NULL, NULL, 0};
+
 // Register hotkey with Carbon
 static int registerHotkey(UInt32 keyCode, UInt32 modifiers) {
+    // Clean up existing registration if any
+    if (gHotkeyState.registered) {
+        if (gHotkeyState.hotKeyRef) {
+            UnregisterEventHotKey(gHotkeyState.hotKeyRef);
+            gHotkeyState.hotKeyRef = NULL;
+        }
+        if (gHotkeyState.handlerRef) {
+            RemoveEventHandler(gHotkeyState.handlerRef);
+            gHotkeyState.handlerRef = NULL;
+        }
+        if (gHotkeyState.handlerUPP) {
+            DisposeEventHandlerUPP(gHotkeyState.handlerUPP);
+            gHotkeyState.handlerUPP = NULL;
+        }
+        gHotkeyState.registered = 0;
+    }
+
     EventTypeSpec eventTypes[2];
     eventTypes[0].eventClass = kEventClassKeyboard;
     eventTypes[0].eventKind = kEventHotKeyPressed;
     eventTypes[1].eventClass = kEventClassKeyboard;
     eventTypes[1].eventKind = kEventHotKeyReleased;
 
-    EventHandlerUPP handlerUPP = NewEventHandlerUPP(hotkeyHandler);
-    InstallApplicationEventHandler(handlerUPP, 2, eventTypes, NULL, NULL);
+    gHotkeyState.handlerUPP = NewEventHandlerUPP(hotkeyHandler);
+    OSStatus status = InstallApplicationEventHandler(
+        gHotkeyState.handlerUPP,
+        2,
+        eventTypes,
+        NULL,
+        &gHotkeyState.handlerRef
+    );
 
-    EventHotKeyRef hotKeyRef;
+    if (status != noErr) {
+        DisposeEventHandlerUPP(gHotkeyState.handlerUPP);
+        gHotkeyState.handlerUPP = NULL;
+        return 0;
+    }
+
     EventHotKeyID hotKeyID;
     hotKeyID.signature = 'htk1';
     hotKeyID.id = 1;
 
-    OSStatus status = RegisterEventHotKey(keyCode, modifiers, hotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef);
+    status = RegisterEventHotKey(
+        keyCode,
+        modifiers,
+        hotKeyID,
+        GetApplicationEventTarget(),
+        0,
+        &gHotkeyState.hotKeyRef
+    );
 
-    return (status == noErr) ? 1 : 0;
+    if (status != noErr) {
+        RemoveEventHandler(gHotkeyState.handlerRef);
+        DisposeEventHandlerUPP(gHotkeyState.handlerUPP);
+        gHotkeyState.handlerRef = NULL;
+        gHotkeyState.handlerUPP = NULL;
+        gHotkeyState.hotKeyRef = NULL;
+        return 0;
+    }
+
+    gHotkeyState.registered = 1;
+    return 1;
+}
+
+// Unregister and cleanup hotkey resources
+static void unregisterHotkey() {
+    if (!gHotkeyState.registered) {
+        return;
+    }
+
+    if (gHotkeyState.hotKeyRef) {
+        UnregisterEventHotKey(gHotkeyState.hotKeyRef);
+        gHotkeyState.hotKeyRef = NULL;
+    }
+
+    if (gHotkeyState.handlerRef) {
+        RemoveEventHandler(gHotkeyState.handlerRef);
+        gHotkeyState.handlerRef = NULL;
+    }
+
+    if (gHotkeyState.handlerUPP) {
+        DisposeEventHandlerUPP(gHotkeyState.handlerUPP);
+        gHotkeyState.handlerUPP = NULL;
+    }
+
+    gHotkeyState.registered = 0;
 }
 */
 import "C"
@@ -88,11 +167,14 @@ func (m *darwinManager) Register(accel string, callback func(pressed bool)) erro
 }
 
 func (m *darwinManager) Unregister(accel string) error {
-	// TODO: UnregisterEventHotKey implementation
+	C.unregisterHotkey()
+	m.callback = nil
 	return nil
 }
 
 func (m *darwinManager) Close() error {
+	C.unregisterHotkey()
+	m.callback = nil
 	globalManager = nil
 	return nil
 }
