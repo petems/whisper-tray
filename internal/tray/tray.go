@@ -154,7 +154,7 @@ func (u *UI) buildDeviceMenu() {
 }
 
 func (u *UI) buildModelMenu() {
-	models := []string{"base.en", "small.en", "medium.en", "large-v3"}
+	models := []string{"base.en", "small.en", "medium.en", "large-v3", "large-v3-turbo"}
 	modelItems := make(map[string]*systray.MenuItem)
 
 	for _, model := range models {
