@@ -10,7 +10,8 @@ bin/
 *.test
 
 # Output of go build
-whisper-tray
+/whisper-tray
+/whisper-tray.exe
 *.app
 
 # Go workspace file
