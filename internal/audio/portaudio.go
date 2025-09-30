@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/petems/whisper-tray/internal/config"
 	"github.com/gordonklaus/portaudio"
+	"github.com/petems/whisper-tray/internal/config"
 )
 
 type portAudioCapture struct {
@@ -35,9 +35,17 @@ func (p *portAudioCapture) Start(ctx context.Context, deviceID string, sampleRat
 			return fmt.Errorf("failed to enumerate devices: %w", err)
 		}
 		for _, d := range devices {
-			if d.Name == deviceID {
+			if d.Name != deviceID {
+				continue
+			}
+			// Prefer entries that actually expose input channels (some devices appear twice for input/output)
+			if d.MaxInputChannels > 0 {
 				device = d
 				break
+			}
+			// Keep as fallback but continue searching for an input-capable variant
+			if device == nil {
+				device = d
 			}
 		}
 	}
@@ -46,16 +54,27 @@ func (p *portAudioCapture) Start(ctx context.Context, deviceID string, sampleRat
 		return fmt.Errorf("device not found: %s", deviceID)
 	}
 
-	// Open stream: mono, specified sample rate, float32
-	buffer := make([]float32, 512)
+	// Determine channel count; many USB mics (e.g., Yeti) expose stereo only, so respect their native input count.
+	channels := int(device.MaxInputChannels)
+	if channels <= 0 {
+		return fmt.Errorf("device reports no input channels: %s", device.Name)
+	}
+	// Whisper expects mono, so we'll downmix later. Cap to 2 channels to keep buffer math simple.
+	if channels > 2 {
+		channels = 2
+	}
+
+	framesPerBuffer := 512
+	// Allocate interleaved buffer sized for channel count.
+	buffer := make([]float32, framesPerBuffer*channels)
 	stream, err := portaudio.OpenStream(portaudio.StreamParameters{
 		Input: portaudio.StreamDeviceParameters{
 			Device:   device,
-			Channels: 1,
+			Channels: channels,
 			Latency:  device.DefaultLowInputLatency,
 		},
 		SampleRate:      float64(sampleRate),
-		FramesPerBuffer: len(buffer),
+		FramesPerBuffer: framesPerBuffer,
 	}, buffer)
 
 	if err != nil {
@@ -80,12 +99,11 @@ func (p *portAudioCapture) Start(ctx context.Context, deviceID string, sampleRat
 				if err := stream.Read(); err != nil {
 					return
 				}
-				// Copy buffer and send
-				samples := make([]float32, len(buffer))
-				copy(samples, buffer)
+				// Copy buffer and downmix to mono if necessary before sending.
+				monoSamples := downmixInterleaved(buffer, channels, framesPerBuffer)
 
 				select {
-				case out <- samples:
+				case out <- monoSamples:
 				case <-ctx.Done():
 					return
 				default:
@@ -133,4 +151,25 @@ func (p *portAudioCapture) Close() error {
 	}
 	portaudio.Terminate()
 	return nil
+}
+
+// downmixInterleaved converts an interleaved multi-channel buffer into a mono slice.
+// It allocates a fresh slice sized to the supplied frame count.
+// Channels must be >= 1; when channels == 1 the first frames elements are copied directly.
+func downmixInterleaved(buffer []float32, channels int, frames int) []float32 {
+	mono := make([]float32, frames)
+	if channels <= 1 {
+		copy(mono, buffer[:frames])
+		return mono
+	}
+
+	for frame := 0; frame < frames; frame++ {
+		sum := float32(0)
+		base := frame * channels
+		for ch := 0; ch < channels; ch++ {
+			sum += buffer[base+ch]
+		}
+		mono[frame] = sum / float32(channels)
+	}
+	return mono
 }
