@@ -1,5 +1,5 @@
 # .github/workflows/build.yml
-name: Build WhisperMatic
+name: Build WhisperTray
 
 on:
   push:
@@ -12,30 +12,35 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         include:
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
-            artifact: whispermatic
+            artifact: whisper-tray
+            experimental: true
           - os: macos-latest
             goos: darwin
             goarch: arm64
-            artifact: whispermatic
+            artifact: whisper-tray
+            experimental: false
           - os: windows-latest
             goos: windows
             goarch: amd64
-            artifact: whispermatic.exe
+            artifact: whisper-tray.exe
+            experimental: true
 
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: '1.22'
         cache: true
@@ -52,18 +57,13 @@ jobs:
         brew install portaudio
 
     - name: Cache whisper.cpp
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: vendor/whisper.cpp
-        key: ${{ runner.os }}-whisper-${{ hashFiles('**/Makefile') }}
+        key: ${{ runner.os }}-whisper-v1.5.4-${{ hashFiles('**/Makefile') }}
 
     - name: Build whisper.cpp
-      run: |
-        if [ ! -d "vendor/whisper.cpp" ]; then
-          git clone --depth 1 https://github.com/ggerganov/whisper.cpp vendor/whisper.cpp
-        fi
-        cd vendor/whisper.cpp
-        make libwhisper.a
+      run: make whisper-cpp
       shell: bash
 
     - name: Download dependencies
@@ -73,26 +73,34 @@ jobs:
       run: go test -v ./...
 
     - name: Build application
+      run: make build-mac
+      if: runner.os == 'macOS'
+      shell: bash
+
+    - name: Build application (Linux)
+      if: runner.os == 'Linux'
       env:
-        GOOS: ${{ matrix.goos }}
-        GOARCH: ${{ matrix.goarch }}
         CGO_ENABLED: 1
       run: |
-        go build -ldflags="-s -w" -o bin/${{ matrix.artifact }} ./cmd/whispermatic
+        CGO_CFLAGS="-I$(pwd)/vendor/whisper.cpp" \
+        CGO_LDFLAGS="-L$(pwd)/vendor/whisper.cpp -lwhisper" \
+        go build -ldflags="-s -w -X main.Version=${{ github.ref_name }} -X main.Commit=${{ github.sha }}" \
+        -o bin/${{ matrix.artifact }} ./cmd/whisper-tray
+      shell: bash
 
-    - name: Create macOS app bundle
-      if: runner.os == 'macOS'
+    - name: Build application (Windows)
+      if: runner.os == 'Windows'
+      env:
+        CGO_ENABLED: 1
       run: |
-        mkdir -p bin/WhisperMatic.app/Contents/MacOS
-        mkdir -p bin/WhisperMatic.app/Contents/Resources
-        mv bin/whispermatic bin/WhisperMatic.app/Contents/MacOS/
-        cp resources/Info.plist bin/WhisperMatic.app/Contents/
-        cp resources/icon.icns bin/WhisperMatic.app/Contents/Resources/
+        go build -ldflags="-s -w -X main.Version=${{ github.ref_name }} -X main.Commit=${{ github.sha }}" \
+        -o bin/${{ matrix.artifact }} ./cmd/whisper-tray
+      shell: bash
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: whispermatic-${{ matrix.goos }}-${{ matrix.goarch }}
+        name: whisper-tray-${{ matrix.goos }}-${{ matrix.goarch }}
         path: bin/*
 
     - name: Create release archive
@@ -100,19 +108,14 @@ jobs:
       run: |
         cd bin
         if [ "${{ runner.os }}" == "Windows" ]; then
-          7z a whispermatic-${{ matrix.goos }}-${{ matrix.goarch }}.zip *
+          7z a whisper-tray-${{ matrix.goos }}-${{ matrix.goarch }}.zip *
         else
-          tar czf whispermatic-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz *
+          tar czf whisper-tray-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz *
         fi
       shell: bash
 
     - name: Upload release assets
       if: github.event_name == 'release'
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./bin/whispermatic-${{ matrix.goos }}-${{ matrix.goarch }}.*
-        asset_name: whispermatic-${{ matrix.goos }}-${{ matrix.goarch }}
-        asset_content_type: application/octet-stream
+        files: ./bin/whisper-tray-${{ matrix.goos }}-${{ matrix.goarch }}.*
