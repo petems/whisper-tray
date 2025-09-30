@@ -457,6 +457,32 @@ func TestDictationFlow(t *testing.T) {
 - **Integration**: fake audio (WAV replay) → assert transcript contains expected phrase
 - **E2E (manual)**: matrix across 3 OS + apps (Notepad/TextEdit/VSCode/Chrome)
 
+### Running Tests
+
+The Makefile provides flexible test commands:
+
+```bash
+# Run all tests (auto-detects platform)
+make test
+
+# Run specific test package
+make test TEST=./internal/audio
+
+# Platform-specific tests
+make test-osx          # macOS with Metal/Accelerate frameworks
+make test-linux        # Linux with X11
+make test-windows      # Windows
+
+# Run specific test on specific platform
+make test-osx TEST=./internal/hotkey
+```
+
+**Implementation Details**:
+- `make test` auto-detects OS (Darwin/Linux/Windows) and delegates to platform-specific target
+- Each platform target uses appropriate CGO flags for native dependencies
+- Supports `TEST` variable to run specific packages or tests
+- CI uses `make test` and `make build` in GitHub Actions
+
 ## Security/Privacy Principles
 
 - Default offline; no network except model download

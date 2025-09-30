@@ -1,16 +1,14 @@
-# .github/workflows/build.yml
-name: Build WhisperTray
+# .github/workflows/test.yml
+name: Test
 
 on:
   push:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-  release:
-    types: [ created ]
 
 jobs:
-  build:
+  test:
     runs-on: macos-latest
 
     steps:
@@ -40,25 +38,6 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
-    - name: Build application
-      run: make build
+    - name: Run tests
+      run: make test
       shell: bash
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: whisper-tray-darwin-arm64
-        path: bin/*
-
-    - name: Create release archive
-      if: github.event_name == 'release'
-      run: |
-        cd bin
-        tar czf whisper-tray-darwin-arm64.tar.gz *
-      shell: bash
-
-    - name: Upload release assets
-      if: github.event_name == 'release'
-      uses: softprops/action-gh-release@v1
-      with:
-        files: ./bin/whisper-tray-darwin-arm64.tar.gz

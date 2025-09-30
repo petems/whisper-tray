@@ -9,16 +9,24 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT)
 
-all: whisper-cpp build-mac
-
-# Detect platform
+# Detect platform and set platform-specific targets
 UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Linux)
-    BUILD_TARGET := build-linux
-endif
 ifeq ($(UNAME_S),Darwin)
-    BUILD_TARGET := build-mac
+    BUILD_PLATFORM_TARGET := build-mac
+    TEST_PLATFORM_TARGET := test-osx
+else ifeq ($(UNAME_S),Linux)
+    BUILD_PLATFORM_TARGET := build-linux
+    TEST_PLATFORM_TARGET := test-linux
+else
+    BUILD_PLATFORM_TARGET := build-windows
+    TEST_PLATFORM_TARGET := test-windows
 endif
+
+all: whisper-cpp build
+
+# Build for current platform (auto-detect)
+build: whisper-cpp
+	@$(MAKE) $(BUILD_PLATFORM_TARGET)
 
 # Setup whisper.cpp
 whisper-cpp:
@@ -105,29 +113,37 @@ install-deps:
 	go mod tidy
 	@echo "✓ Dependencies installed"
 
-# Run tests (requires whisper.cpp to be built)
+# Run tests (auto-detect platform and allow specific test via TEST variable)
+# Usage: make test or make test TEST=./internal/audio
 test: whisper-cpp
-	@echo "Running tests..."
+	@$(MAKE) $(TEST_PLATFORM_TARGET) TEST=$(TEST)
+
+# Run tests on macOS
+# Usage: make test-osx or make test-osx TEST=./internal/audio
+test-osx: whisper-cpp
+	@echo "Running tests (macOS)..."
 	CGO_ENABLED=1 \
 	CGO_CFLAGS="-I$(shell pwd)/vendor/whisper.cpp" \
 	CGO_LDFLAGS="-L$(shell pwd)/vendor/whisper.cpp -lwhisper -framework Accelerate -framework Foundation -framework Metal -framework MetalKit" \
-	go test -mod=mod -v ./...
+	go test -mod=mod -v $(if $(TEST),$(TEST),./...)
 
 # Run tests on Linux
+# Usage: make test-linux or make test-linux TEST=./internal/audio
 test-linux: whisper-cpp
 	@echo "Running tests (Linux)..."
 	CGO_ENABLED=1 \
 	CGO_CFLAGS="-I$(shell pwd)/vendor/whisper.cpp" \
 	CGO_LDFLAGS="-L$(shell pwd)/vendor/whisper.cpp -lwhisper" \
-	go test -mod=mod -v ./...
+	go test -mod=mod -v $(if $(TEST),$(TEST),./...)
 
 # Run tests on Windows
+# Usage: make test-windows or make test-windows TEST=./internal/audio
 test-windows: whisper-cpp
 	@echo "Running tests (Windows)..."
 	CGO_ENABLED=1 \
 	CGO_CFLAGS="-I$(shell pwd)/vendor/whisper.cpp" \
 	CGO_LDFLAGS="-L$(shell pwd)/vendor/whisper.cpp -lwhisper" \
-	go test -mod=mod -v ./...
+	go test -mod=mod -v $(if $(TEST),$(TEST),./...)
 
 # Clean build artifacts
 clean:
@@ -140,14 +156,21 @@ clean:
 help:
 	@echo "WhisperTray Makefile Commands:"
 	@echo ""
-	@echo "  make                    - Build everything (whisper.cpp + macOS binary)"
+	@echo "  make                    - Build everything (whisper.cpp + binary for current platform)"
 	@echo "  make whisper-cpp        - Setup and build whisper.cpp"
+	@echo "  make build              - Build binary for current platform (auto-detect)"
 	@echo "  make build-mac          - Build macOS binary"
+	@echo "  make build-linux        - Build Linux binary"
+	@echo "  make build-windows      - Build Windows binary"
 	@echo "  make build-mac-app      - Build macOS .app bundle"
 	@echo "  make build-mac-universal - Build universal (Intel + Apple Silicon) binary"
 	@echo "  make dev                - Quick dev build (skip whisper.cpp)"
 	@echo "  make run                - Build and run"
 	@echo "  make install-deps       - Install Go dependencies"
-	@echo "  make test               - Run tests"
+	@echo "  make test               - Run tests (auto-detects platform)"
+	@echo "  make test-osx           - Run tests on macOS"
+	@echo "  make test-linux         - Run tests on Linux"
+	@echo "  make test-windows       - Run tests on Windows"
+	@echo "    (Note: Pass TEST=<path> to any test command to run specific tests)"
 	@echo "  make clean              - Remove build artifacts"
 	@echo ""
