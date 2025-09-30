@@ -19,6 +19,7 @@ type UI struct {
 	version string
 	commit  string
 	log     zerolog.Logger
+	quitCh  chan struct{}
 
 	// Menu items
 	mStartStop   *systray.MenuItem
@@ -55,6 +56,7 @@ func New(application *app.App, cfg *config.Config, version, commit string) *UI {
 		version: version,
 		commit:  commit,
 		log:     log,
+		quitCh:  make(chan struct{}),
 	}
 }
 
@@ -77,7 +79,8 @@ func (u *UI) onReady() {
 	u.mStartStop = systray.AddMenuItem("Start Dictation", "Press hotkey to dictate")
 	systray.AddSeparator()
 
-	u.mMode = systray.AddMenuItem("Mode: Push-to-Talk", "Toggle between modes")
+	u.mMode = systray.AddMenuItem("Mode", "Select input mode")
+	u.buildModeMenu()
 	systray.AddSeparator()
 
 	u.mDevices = systray.AddMenuItem("Microphone", "Select audio device")
@@ -103,8 +106,6 @@ func (u *UI) onReady() {
 func (u *UI) handleEvents(mLogs, mAbout, mQuit *systray.MenuItem) {
 	for {
 		select {
-		case <-u.mMode.ClickedCh:
-			u.toggleMode()
 		case <-u.mPastePrefer.ClickedCh:
 			u.togglePastePrefer()
 		case <-u.mRunAtLogin.ClickedCh:
@@ -141,21 +142,62 @@ func (u *UI) buildDeviceMenu() {
 
 		go func(deviceID, deviceName string, menuItem *systray.MenuItem) {
 			for {
-				<-menuItem.ClickedCh
-				// Uncheck all other items
-				for id, itm := range deviceItems {
-					if id != deviceID {
-						itm.Uncheck()
+				select {
+				case <-menuItem.ClickedCh:
+					if err := u.app.SetDevice(deviceID); err != nil {
+						u.log.Error().Err(err).Msg("Failed to change audio device")
+					} else {
+						// Uncheck all other items
+						for id, itm := range deviceItems {
+							if id != deviceID {
+								itm.Uncheck()
+							}
+						}
+						// Check this item
+						menuItem.Check()
+						u.log.Info().Str("device", deviceName).Msg("Changed audio device")
 					}
+				case <-u.quitCh:
+					return
 				}
-				// Check this item
-				menuItem.Check()
-				u.cfg.Audio.DeviceID = deviceID
-				u.cfg.Save()
-				u.log.Info().Str("device", deviceName).Msg("Changed audio device")
-				u.app.SetDevice(deviceID)
 			}
 		}(dev.ID, dev.Name, item)
+	}
+}
+
+func (u *UI) buildModeMenu() {
+	modes := []string{config.ModePushToTalk, config.ModeToggle}
+	modeItems := make(map[string]*systray.MenuItem)
+
+	for _, mode := range modes {
+		item := u.mMode.AddSubMenuItem(mode, "")
+		if mode == u.cfg.Mode {
+			item.Check()
+		}
+		modeItems[mode] = item
+
+		go func(m string, menuItem *systray.MenuItem) {
+			for {
+				select {
+				case <-menuItem.ClickedCh:
+					// Uncheck all other items
+					for md, itm := range modeItems {
+						if md != m {
+							itm.Uncheck()
+						}
+					}
+					// Check this item
+					menuItem.Check()
+					oldMode := u.cfg.Mode
+					u.app.SetMode(m)
+					if oldMode != m {
+						u.log.Info().Str("from", oldMode).Str("to", m).Msg("Changed mode")
+					}
+				case <-u.quitCh:
+					return
+				}
+			}
+		}(mode, item)
 	}
 }
 
@@ -178,20 +220,24 @@ func (u *UI) buildModelMenu() {
 
 		go func(m string, menuItem *systray.MenuItem) {
 			for {
-				<-menuItem.ClickedCh
-				// Uncheck all other items
-				for mdl, itm := range modelItems {
-					if mdl != m {
-						itm.Uncheck()
+				select {
+				case <-menuItem.ClickedCh:
+					if err := u.app.SetModel(m); err != nil {
+						u.log.Error().Err(err).Msg("Failed to change Whisper model")
+					} else {
+						// Uncheck all other items
+						for mdl, itm := range modelItems {
+							if mdl != m {
+								itm.Uncheck()
+							}
+						}
+						// Check this item
+						menuItem.Check()
+						u.log.Info().Str("to", m).Msg("Changed Whisper model")
 					}
+				case <-u.quitCh:
+					return
 				}
-				// Check this item
-				menuItem.Check()
-				oldModel := u.cfg.Whisper.Model
-				u.cfg.Whisper.Model = m
-				u.cfg.Save()
-				u.log.Info().Str("from", oldModel).Str("to", m).Msg("Changed Whisper model")
-				u.app.SetModel(m)
 			}
 		}(model, item)
 	}
@@ -199,14 +245,14 @@ func (u *UI) buildModelMenu() {
 
 func (u *UI) toggleMode() {
 	oldMode := u.cfg.Mode
-	if u.cfg.Mode == "PushToTalk" {
-		u.cfg.Mode = "Toggle"
+	if u.cfg.Mode == config.ModePushToTalk {
+		u.cfg.Mode = config.ModeToggle
 		u.mMode.SetTitle("Mode: Toggle")
-		u.app.SetMode("Toggle")
+		u.app.SetMode(config.ModeToggle)
 	} else {
-		u.cfg.Mode = "PushToTalk"
+		u.cfg.Mode = config.ModePushToTalk
 		u.mMode.SetTitle("Mode: Push-to-Talk")
-		u.app.SetMode("PushToTalk")
+		u.app.SetMode(config.ModePushToTalk)
 	}
 	u.cfg.Save()
 	u.log.Info().Str("from", oldMode).Str("to", u.cfg.Mode).Msg("Changed mode")
@@ -261,7 +307,8 @@ func (u *UI) showAbout() {
 }
 
 func (u *UI) onExit() {
-	// Cleanup
+	// Signal all goroutines to stop
+	close(u.quitCh)
 }
 
 // isModelDownloaded checks if a Whisper model file exists
