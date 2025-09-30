@@ -77,7 +77,8 @@ func (u *UI) onReady() {
 	u.mStartStop = systray.AddMenuItem("Start Dictation", "Press hotkey to dictate")
 	systray.AddSeparator()
 
-	u.mMode = systray.AddMenuItem("Mode: Push-to-Talk", "Toggle between modes")
+	u.mMode = systray.AddMenuItem("Mode", "Select input mode")
+	u.buildModeMenu()
 	systray.AddSeparator()
 
 	u.mDevices = systray.AddMenuItem("Microphone", "Select audio device")
@@ -103,8 +104,6 @@ func (u *UI) onReady() {
 func (u *UI) handleEvents(mLogs, mAbout, mQuit *systray.MenuItem) {
 	for {
 		select {
-		case <-u.mMode.ClickedCh:
-			u.toggleMode()
 		case <-u.mPastePrefer.ClickedCh:
 			u.togglePastePrefer()
 		case <-u.mRunAtLogin.ClickedCh:
@@ -156,6 +155,38 @@ func (u *UI) buildDeviceMenu() {
 				u.app.SetDevice(deviceID)
 			}
 		}(dev.ID, dev.Name, item)
+	}
+}
+
+func (u *UI) buildModeMenu() {
+	modes := []string{"PushToTalk", "Toggle"}
+	modeItems := make(map[string]*systray.MenuItem)
+
+	for _, mode := range modes {
+		item := u.mMode.AddSubMenuItem(mode, "")
+		if mode == u.cfg.Mode {
+			item.Check()
+		}
+		modeItems[mode] = item
+
+		go func(m string, menuItem *systray.MenuItem) {
+			for {
+				<-menuItem.ClickedCh
+				// Uncheck all other items
+				for md, itm := range modeItems {
+					if md != m {
+						itm.Uncheck()
+					}
+				}
+				// Check this item
+				menuItem.Check()
+				oldMode := u.cfg.Mode
+				u.cfg.Mode = m
+				u.cfg.Save()
+				u.log.Info().Str("from", oldMode).Str("to", m).Msg("Changed mode")
+				u.app.SetMode(m)
+			}
+		}(mode, item)
 	}
 }
 
