@@ -9,26 +9,24 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT)
 
-all: whisper-cpp build
-
-# Detect platform
+# Detect platform and set platform-specific targets
 UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Linux)
-    BUILD_TARGET := build-linux
-endif
 ifeq ($(UNAME_S),Darwin)
-    BUILD_TARGET := build-mac
+    BUILD_PLATFORM_TARGET := build-mac
+    TEST_PLATFORM_TARGET := test-osx
+else ifeq ($(UNAME_S),Linux)
+    BUILD_PLATFORM_TARGET := build-linux
+    TEST_PLATFORM_TARGET := test-linux
+else
+    BUILD_PLATFORM_TARGET := build-windows
+    TEST_PLATFORM_TARGET := test-windows
 endif
+
+all: whisper-cpp build
 
 # Build for current platform (auto-detect)
 build: whisper-cpp
-ifeq ($(UNAME_S),Darwin)
-	@$(MAKE) build-mac
-else ifeq ($(UNAME_S),Linux)
-	@$(MAKE) build-linux
-else
-	@$(MAKE) build-windows
-endif
+	@$(MAKE) $(BUILD_PLATFORM_TARGET)
 
 # Setup whisper.cpp
 whisper-cpp:
@@ -118,13 +116,7 @@ install-deps:
 # Run tests (auto-detect platform and allow specific test via TEST variable)
 # Usage: make test or make test TEST=./internal/audio
 test: whisper-cpp
-ifeq ($(UNAME_S),Darwin)
-	@$(MAKE) test-osx TEST=$(TEST)
-else ifeq ($(UNAME_S),Linux)
-	@$(MAKE) test-linux TEST=$(TEST)
-else
-	@$(MAKE) test-windows TEST=$(TEST)
-endif
+	@$(MAKE) $(TEST_PLATFORM_TARGET) TEST=$(TEST)
 
 # Run tests on macOS
 # Usage: make test-osx or make test-osx TEST=./internal/audio
@@ -175,10 +167,10 @@ help:
 	@echo "  make dev                - Quick dev build (skip whisper.cpp)"
 	@echo "  make run                - Build and run"
 	@echo "  make install-deps       - Install Go dependencies"
-	@echo "  make test               - Run tests (auto-detect platform)"
-	@echo "  make test TEST=<path>   - Run specific test package"
+	@echo "  make test               - Run tests (auto-detects platform)"
 	@echo "  make test-osx           - Run tests on macOS"
 	@echo "  make test-linux         - Run tests on Linux"
 	@echo "  make test-windows       - Run tests on Windows"
+	@echo "    (Note: Pass TEST=<path> to any test command to run specific tests)"
 	@echo "  make clean              - Remove build artifacts"
 	@echo ""

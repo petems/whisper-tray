@@ -481,7 +481,7 @@ make test-osx TEST=./internal/hotkey
 - `make test` auto-detects OS (Darwin/Linux/Windows) and delegates to platform-specific target
 - Each platform target uses appropriate CGO flags for native dependencies
 - Supports `TEST` variable to run specific packages or tests
-- CI uses platform-specific targets in GitHub Actions
+- CI uses `make test` and `make build` in GitHub Actions
 
 ## Security/Privacy Principles
 
