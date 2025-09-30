@@ -11,28 +11,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-            artifact: whisper-tray
-            required: false
-          - os: macos-latest
-            goos: darwin
-            goarch: arm64
-            artifact: whisper-tray
-            required: true
-          - os: windows-latest
-            goos: windows
-            goarch: amd64
-            artifact: whisper-tray.exe
-            required: false
-
-    runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ !matrix.required }}
+    runs-on: macos-latest
 
     steps:
     - name: Checkout code
@@ -44,14 +23,7 @@ jobs:
         go-version: '1.22'
         cache: true
 
-    - name: Install Linux dependencies
-      if: runner.os == 'Linux'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y portaudio19-dev libx11-dev xorg-dev libxtst-dev
-
     - name: Install macOS dependencies
-      if: runner.os == 'macOS'
       run: |
         brew install portaudio
 
@@ -59,7 +31,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: vendor/whisper.cpp
-        key: ${{ runner.os }}-whisper-v1.5.4-${{ hashFiles('**/Makefile') }}
+        key: macos-whisper-v1.5.4-${{ hashFiles('**/Makefile') }}
 
     - name: Build whisper.cpp
       run: make whisper-cpp
@@ -75,22 +47,18 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: whisper-tray-${{ matrix.goos }}-${{ matrix.goarch }}
+        name: whisper-tray-darwin-arm64
         path: bin/*
 
     - name: Create release archive
       if: github.event_name == 'release'
       run: |
         cd bin
-        if [ "${{ runner.os }}" == "Windows" ]; then
-          7z a whisper-tray-${{ matrix.goos }}-${{ matrix.goarch }}.zip *
-        else
-          tar czf whisper-tray-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz *
-        fi
+        tar czf whisper-tray-darwin-arm64.tar.gz *
       shell: bash
 
     - name: Upload release assets
       if: github.event_name == 'release'
       uses: softprops/action-gh-release@v1
       with:
-        files: ./bin/whisper-tray-${{ matrix.goos }}-${{ matrix.goarch }}.*
+        files: ./bin/whisper-tray-darwin-arm64.tar.gz

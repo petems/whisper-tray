@@ -9,22 +9,7 @@ on:
 
 jobs:
   test:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            goos: linux
-            required: false
-          - os: macos-latest
-            goos: darwin
-            required: true
-          - os: windows-latest
-            goos: windows
-            required: false
-
-    runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ !matrix.required }}
+    runs-on: macos-latest
 
     steps:
     - name: Checkout code
@@ -36,14 +21,7 @@ jobs:
         go-version: '1.22'
         cache: true
 
-    - name: Install Linux dependencies
-      if: runner.os == 'Linux'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y portaudio19-dev libx11-dev xorg-dev libxtst-dev
-
     - name: Install macOS dependencies
-      if: runner.os == 'macOS'
       run: |
         brew install portaudio
 
@@ -51,7 +29,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: vendor/whisper.cpp
-        key: ${{ runner.os }}-whisper-v1.5.4-${{ hashFiles('**/Makefile') }}
+        key: macos-whisper-v1.5.4-${{ hashFiles('**/Makefile') }}
 
     - name: Build whisper.cpp
       run: make whisper-cpp
