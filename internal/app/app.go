@@ -48,12 +48,13 @@ type App struct {
 	log    zerolog.Logger
 	status StatusUpdater
 
-	mu         sync.Mutex
-	dictating  bool
-	session    whisper.Session
-	audioCtx   context.Context
-	audioStop  context.CancelFunc
-	textBuffer []string
+	mu               sync.Mutex
+	dictating        bool
+	session          whisper.Session
+	audioCtx         context.Context
+	audioStop        context.CancelFunc
+	textBuffer       []string
+	collectorDone    chan struct{}
 }
 
 func New(cfg Config) *App {
@@ -122,6 +123,9 @@ func (a *App) startDictationLocked() {
 	}
 	a.session = session
 
+	// Create collector done channel
+	a.collectorDone = make(chan struct{})
+
 	// Bounded audio buffer
 	audioChan := make(chan []float32, 8)
 
@@ -170,10 +174,26 @@ func (a *App) stopAndInjectLocked() {
 		a.audioStop()
 	}
 
-	if a.session != nil {
-		time.Sleep(100 * time.Millisecond) // Allow finals
-		a.session.Close()
+	session := a.session
+	collectorDone := a.collectorDone
+
+	// Unlock before closing session to avoid deadlock
+	// (collectTranscripts needs the mutex to append finals)
+	a.mu.Unlock()
+
+	if session != nil {
+		session.Close()
 	}
+
+	// Wait for collector to finish receiving all finals
+	if collectorDone != nil {
+		a.log.Debug().Msg("Waiting for collector to finish")
+		<-collectorDone
+		a.log.Debug().Msg("Collector finished")
+	}
+
+	// Re-lock to safely access textBuffer
+	a.mu.Lock()
 
 	text := a.joinText()
 	if text == "" {
@@ -203,22 +223,36 @@ func (a *App) stopAndInjectLocked() {
 }
 
 func (a *App) collectTranscripts() {
+	a.log.Debug().Msg("collectTranscripts started")
+	defer func() {
+		a.log.Debug().Msg("collectTranscripts exiting, signaling done")
+		close(a.collectorDone)
+	}()
+
+	partials := a.session.Partials()
+	finals := a.session.Finals()
+
 	for {
 		select {
-		case <-a.audioCtx.Done():
-			return
-		case partial := <-a.session.Partials():
+		case partial, ok := <-partials:
+			if !ok {
+				a.log.Debug().Msg("Partials channel closed")
+				partials = nil // Stop selecting on closed channel
+				continue
+			}
 			if a.cfg.StreamPartials {
 				a.log.Debug().Str("partial", partial).Msg("Partial")
 			}
-		case final, ok := <-a.session.Finals():
+		case final, ok := <-finals:
 			if !ok {
+				// Finals channel closed, we're done
+				a.log.Debug().Msg("Finals channel closed")
 				return
 			}
 			a.mu.Lock()
 			a.textBuffer = append(a.textBuffer, final)
 			a.mu.Unlock()
-			a.log.Info().Str("final", final).Msg("Final")
+			a.log.Info().Str("final", final).Msg("Final received and buffered")
 		}
 	}
 }

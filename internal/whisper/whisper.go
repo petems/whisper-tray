@@ -217,18 +217,8 @@ func (s *whisperSession) processChunk() error {
 			Int("segment", segmentCount).
 			Msg("Got transcription segment")
 
-		// Send as final
-		select {
-		case s.finals <- text:
-		case <-s.done:
-			s.mu.Lock()
-			s.processing = false
-			s.mu.Unlock()
-			return nil
-		default:
-			// Drop if channel full
-			log.Warn().Msg("Finals channel full, dropping segment")
-		}
+		// Send as final (blocking send to ensure delivery)
+		s.finals <- text
 	}
 
 	log.Debug().
