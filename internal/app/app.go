@@ -124,8 +124,7 @@ func (a *App) startDictationLocked() {
 	a.session = session
 
 	// Create collector done channel
-	collectorDone := make(chan struct{})
-	a.collectorDone = collectorDone
+	a.collectorDone = make(chan struct{})
 
 	// Bounded audio buffer
 	audioChan := make(chan []float32, 8)
@@ -155,7 +154,7 @@ func (a *App) startDictationLocked() {
 	}()
 
 	// Collect results
-	go a.collectTranscripts(collectorDone)
+	go a.collectTranscripts(a.collectorDone)
 }
 
 func (a *App) stopAndInjectLocked() {
