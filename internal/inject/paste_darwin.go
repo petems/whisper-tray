@@ -7,19 +7,44 @@ package inject
 #include <ApplicationServices/ApplicationServices.h>
 #include <Carbon/Carbon.h>
 
-// Send Cmd+V paste shortcut
-void sendPasteShortcut() {
+// Send Cmd+V paste shortcut. Returns 1 on success, 0 on failure.
+int sendPasteShortcut() {
     CGEventSourceRef source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState);
+    if (source == NULL) {
+        return 0;
+    }
 
-    // Press Cmd+V
     CGEventRef cmdDown = CGEventCreateKeyboardEvent(source, (CGKeyCode)55, true); // Cmd key
+    if (cmdDown == NULL) {
+        CFRelease(source);
+        return 0;
+    }
     CGEventSetFlags(cmdDown, kCGEventFlagMaskCommand);
+
     CGEventRef vDown = CGEventCreateKeyboardEvent(source, (CGKeyCode)9, true); // V key
+    if (vDown == NULL) {
+        CFRelease(cmdDown);
+        CFRelease(source);
+        return 0;
+    }
     CGEventSetFlags(vDown, kCGEventFlagMaskCommand);
 
-    // Release V+Cmd
     CGEventRef vUp = CGEventCreateKeyboardEvent(source, (CGKeyCode)9, false);
+    if (vUp == NULL) {
+        CFRelease(vDown);
+        CFRelease(cmdDown);
+        CFRelease(source);
+        return 0;
+    }
+
     CGEventRef cmdUp = CGEventCreateKeyboardEvent(source, (CGKeyCode)55, false);
+    if (cmdUp == NULL) {
+        CFRelease(vUp);
+        CFRelease(vDown);
+        CFRelease(cmdDown);
+        CFRelease(source);
+        return 0;
+    }
 
     // Post events
     CGEventPost(kCGHIDEventTap, cmdDown);
@@ -32,6 +57,8 @@ void sendPasteShortcut() {
     CFRelease(vUp);
     CFRelease(cmdUp);
     CFRelease(source);
+
+    return 1;
 }
 */
 import "C"
@@ -46,7 +73,9 @@ import (
 
 // sendPasteShortcut sends Cmd+V on macOS
 func sendPasteShortcut() error {
-	C.sendPasteShortcut()
+	if C.sendPasteShortcut() == 0 {
+		return fmt.Errorf("failed to synthesize paste shortcut; ensure accessibility permission is granted")
+	}
 	return nil
 }
 
@@ -68,6 +97,8 @@ func platformPaste(ctx context.Context, text string) error {
 
 	// Send Cmd+V
 	if err := sendPasteShortcut(); err != nil {
+		// Restore clipboard before returning (best effort)
+		_ = clipboard.WriteAll(oldClip)
 		return fmt.Errorf("failed to send paste shortcut: %w", err)
 	}
 
