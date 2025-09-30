@@ -73,7 +73,7 @@ func (a *App) OnHotkey(pressed bool) {
 	defer a.mu.Unlock()
 
 	mode := PushToTalk
-	if a.cfg.Mode == "Toggle" {
+	if a.cfg.Mode == config.ModeToggle {
 		mode = Toggle
 	}
 

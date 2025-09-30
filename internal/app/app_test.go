@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/petems/whisper-tray/internal/audio"
 	"github.com/petems/whisper-tray/internal/config"
@@ -88,7 +89,7 @@ func (m *mockInjector) PasteOrType(ctx context.Context, text string) error {
 
 func TestToggleModeKeyPress(t *testing.T) {
 	cfg := &config.Config{
-		Mode: "Toggle",
+		Mode: config.ModeToggle,
 		Audio: config.AudioConfig{
 			DeviceID: "default",
 		},
@@ -127,14 +128,25 @@ func TestToggleModeKeyPress(t *testing.T) {
 
 	// Second key press - should stop dictating
 	app.OnHotkey(true)
-	// Give the goroutines time to finish
-	// Note: In a real test we'd wait for the collector to complete
-	// For now we just verify the state transitions correctly
+
+	// Wait for dictation to stop
+	var stopped bool
+	for i := 0; i < 100; i++ { // Poll for 1 second
+		if !app.IsDictating() {
+			stopped = true
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if !stopped {
+		t.Error("App should have stopped dictating after second key press")
+	}
 }
 
 func TestPushToTalkModeKeyPress(t *testing.T) {
 	cfg := &config.Config{
-		Mode: "PushToTalk",
+		Mode: config.ModePushToTalk,
 		Audio: config.AudioConfig{
 			DeviceID: "default",
 		},
@@ -167,13 +179,25 @@ func TestPushToTalkModeKeyPress(t *testing.T) {
 
 	// Key release - should stop dictating in PushToTalk mode
 	app.OnHotkey(false)
-	// Give the goroutines time to finish
-	// Note: In a real test we'd wait for the collector to complete
+
+	// Wait for dictation to stop
+	var stopped bool
+	for i := 0; i < 100; i++ { // Poll for 1 second
+		if !app.IsDictating() {
+			stopped = true
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if !stopped {
+		t.Error("App should have stopped dictating after key release")
+	}
 }
 
 func TestToggleModeIgnoresKeyRelease(t *testing.T) {
 	cfg := &config.Config{
-		Mode: "Toggle",
+		Mode: config.ModeToggle,
 		Audio: config.AudioConfig{
 			DeviceID: "default",
 		},

@@ -7,6 +7,12 @@ import (
 	"runtime"
 )
 
+// Mode constants
+const (
+	ModePushToTalk = "PushToTalk"
+	ModeToggle     = "Toggle"
+)
+
 type Config struct {
 	Hotkey         string        `json:"hotkey"`
 	HotkeyDarwin   string        `json:"hotkey_darwin"`
@@ -45,7 +51,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Hotkey:       "Alt+Space",
 		HotkeyDarwin: "Alt+Space", // Option+Space
-		Mode:         "PushToTalk",
+		Mode:         ModePushToTalk,
 		Audio: AudioConfig{
 			DeviceID: "",
 		},

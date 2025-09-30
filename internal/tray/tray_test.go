@@ -17,13 +17,13 @@ func TestConfigModeField(t *testing.T) {
 	}{
 		{
 			name:         "PushToTalk mode",
-			initialMode:  "PushToTalk",
-			expectedMode: "PushToTalk",
+			initialMode:  config.ModePushToTalk,
+			expectedMode: config.ModePushToTalk,
 		},
 		{
 			name:         "Toggle mode",
-			initialMode:  "Toggle",
-			expectedMode: "Toggle",
+			initialMode:  config.ModeToggle,
+			expectedMode: config.ModeToggle,
 		},
 	}
 
@@ -45,18 +45,18 @@ func TestConfigModeField(t *testing.T) {
 // mode switching logic in the UI which involves app.SetMode() and UI updates.
 func TestConfigModeFieldMutation(t *testing.T) {
 	cfg := &config.Config{
-		Mode: "PushToTalk",
+		Mode: config.ModePushToTalk,
 	}
 
 	// Mutate field to Toggle
-	cfg.Mode = "Toggle"
-	if cfg.Mode != "Toggle" {
+	cfg.Mode = config.ModeToggle
+	if cfg.Mode != config.ModeToggle {
 		t.Errorf("expected mode Toggle after field mutation, got %s", cfg.Mode)
 	}
 
 	// Mutate field back to PushToTalk
-	cfg.Mode = "PushToTalk"
-	if cfg.Mode != "PushToTalk" {
+	cfg.Mode = config.ModePushToTalk
+	if cfg.Mode != config.ModePushToTalk {
 		t.Errorf("expected mode PushToTalk after field mutation, got %s", cfg.Mode)
 	}
 }
