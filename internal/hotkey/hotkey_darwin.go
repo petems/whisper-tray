@@ -126,7 +126,148 @@ import "C"
 
 import (
 	"fmt"
+	"strings"
 )
+
+const (
+	cmdKeyMask     = uint32(1 << 8)
+	shiftKeyMask   = uint32(1 << 9)
+	optionKeyMask  = uint32(1 << 11)
+	controlKeyMask = uint32(1 << 12)
+)
+
+var modifierLookup = map[string]uint32{
+	"cmd":     cmdKeyMask,
+	"command": cmdKeyMask,
+	"meta":    cmdKeyMask,
+	"super":   cmdKeyMask,
+	"shift":   shiftKeyMask,
+	"option":  optionKeyMask,
+	"opt":     optionKeyMask,
+	"alt":     optionKeyMask,
+	"ctrl":    controlKeyMask,
+	"control": controlKeyMask,
+}
+
+var keyLookup = map[string]uint32{
+	"SPACE":     uint32(C.kVK_Space),
+	"TAB":       uint32(C.kVK_Tab),
+	"ESC":       uint32(C.kVK_Escape),
+	"ESCAPE":    uint32(C.kVK_Escape),
+	"RETURN":    uint32(C.kVK_Return),
+	"ENTER":     uint32(C.kVK_Return),
+	"DELETE":    uint32(C.kVK_Delete),
+	"BACKSPACE": uint32(C.kVK_Delete),
+	"GRAVE":     uint32(C.kVK_ANSI_Grave),
+	"BACKQUOTE": uint32(C.kVK_ANSI_Grave),
+}
+
+func init() {
+	letterMap := map[string]uint32{
+		"A": uint32(C.kVK_ANSI_A),
+		"B": uint32(C.kVK_ANSI_B),
+		"C": uint32(C.kVK_ANSI_C),
+		"D": uint32(C.kVK_ANSI_D),
+		"E": uint32(C.kVK_ANSI_E),
+		"F": uint32(C.kVK_ANSI_F),
+		"G": uint32(C.kVK_ANSI_G),
+		"H": uint32(C.kVK_ANSI_H),
+		"I": uint32(C.kVK_ANSI_I),
+		"J": uint32(C.kVK_ANSI_J),
+		"K": uint32(C.kVK_ANSI_K),
+		"L": uint32(C.kVK_ANSI_L),
+		"M": uint32(C.kVK_ANSI_M),
+		"N": uint32(C.kVK_ANSI_N),
+		"O": uint32(C.kVK_ANSI_O),
+		"P": uint32(C.kVK_ANSI_P),
+		"Q": uint32(C.kVK_ANSI_Q),
+		"R": uint32(C.kVK_ANSI_R),
+		"S": uint32(C.kVK_ANSI_S),
+		"T": uint32(C.kVK_ANSI_T),
+		"U": uint32(C.kVK_ANSI_U),
+		"V": uint32(C.kVK_ANSI_V),
+		"W": uint32(C.kVK_ANSI_W),
+		"X": uint32(C.kVK_ANSI_X),
+		"Y": uint32(C.kVK_ANSI_Y),
+		"Z": uint32(C.kVK_ANSI_Z),
+	}
+
+	for k, v := range letterMap {
+		keyLookup[k] = v
+	}
+
+	digitMap := map[string]uint32{
+		"0": uint32(C.kVK_ANSI_0),
+		"1": uint32(C.kVK_ANSI_1),
+		"2": uint32(C.kVK_ANSI_2),
+		"3": uint32(C.kVK_ANSI_3),
+		"4": uint32(C.kVK_ANSI_4),
+		"5": uint32(C.kVK_ANSI_5),
+		"6": uint32(C.kVK_ANSI_6),
+		"7": uint32(C.kVK_ANSI_7),
+		"8": uint32(C.kVK_ANSI_8),
+		"9": uint32(C.kVK_ANSI_9),
+	}
+
+	for k, v := range digitMap {
+		keyLookup[k] = v
+	}
+
+	functionKeyMap := map[string]uint32{
+		"F1":  uint32(C.kVK_F1),
+		"F2":  uint32(C.kVK_F2),
+		"F3":  uint32(C.kVK_F3),
+		"F4":  uint32(C.kVK_F4),
+		"F5":  uint32(C.kVK_F5),
+		"F6":  uint32(C.kVK_F6),
+		"F7":  uint32(C.kVK_F7),
+		"F8":  uint32(C.kVK_F8),
+		"F9":  uint32(C.kVK_F9),
+		"F10": uint32(C.kVK_F10),
+		"F11": uint32(C.kVK_F11),
+		"F12": uint32(C.kVK_F12),
+	}
+
+	for k, v := range functionKeyMap {
+		keyLookup[k] = v
+	}
+}
+
+func parseAccelerator(accel string) (C.UInt32, C.UInt32, error) {
+	if accel == "" {
+		return 0, 0, fmt.Errorf("accelerator string is empty")
+	}
+
+	tokens := strings.Split(accel, "+")
+	var modifiers uint32
+	var keyToken string
+
+	for _, token := range tokens {
+		t := strings.TrimSpace(token)
+		if t == "" {
+			continue
+		}
+
+		lower := strings.ToLower(t)
+		if mask, ok := modifierLookup[lower]; ok {
+			modifiers |= mask
+			continue
+		}
+
+		keyToken = strings.ToUpper(t)
+	}
+
+	if keyToken == "" {
+		return 0, 0, fmt.Errorf("missing base key in accelerator %q", accel)
+	}
+
+	keyCode, ok := keyLookup[keyToken]
+	if !ok {
+		return 0, 0, fmt.Errorf("unsupported key %q", keyToken)
+	}
+
+	return C.UInt32(keyCode), C.UInt32(modifiers), nil
+}
 
 type darwinManager struct {
 	callback func(bool)
@@ -151,12 +292,10 @@ func (m *darwinManager) Register(accel string, callback func(pressed bool)) erro
 	m.callback = callback
 	globalManager = m
 
-	// TODO: Parse accelerator string properly
-	// For now: hardcoded to Control+Space on macOS
-	// Space = keyCode 49
-	// controlKey=0x1000 (cmdKey=0x100, shiftKey=0x200, optionKey=0x800)
-	keyCode := C.UInt32(49)        // Space
-	modifiers := C.UInt32(0x1000)  // Control key
+	keyCode, modifiers, err := parseAccelerator(accel)
+	if err != nil {
+		return fmt.Errorf("failed to parse accelerator %q: %w", accel, err)
+	}
 
 	ret := C.registerHotkey(keyCode, modifiers)
 	if ret == 0 {
