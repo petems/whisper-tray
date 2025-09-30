@@ -178,6 +178,9 @@ func (a *App) stopAndInjectLocked() {
 	text := a.joinText()
 	if text == "" {
 		a.log.Info().Msg("No text to inject")
+		if a.status != nil {
+			a.status.SetIdle()
+		}
 		return
 	}
 

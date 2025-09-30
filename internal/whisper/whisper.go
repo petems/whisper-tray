@@ -8,6 +8,7 @@ import (
 	"time"
 
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
+	"github.com/rs/zerolog/log"
 
 	"github.com/petems/whisper-tray/internal/config"
 )
@@ -157,6 +158,15 @@ func (s *whisperSession) processChunk() error {
 	s.samples = s.samples[:0]
 	s.mu.Unlock()
 
+	// Log processing start
+	duration := float64(len(samplesToProcess)) / 16000.0
+	log.Debug().
+		Int("samples", len(samplesToProcess)).
+		Float64("duration_sec", duration).
+		Msg("Processing audio chunk")
+
+	start := time.Now()
+
 	// Process audio with whisper
 	model := s.transcriber.model
 
@@ -186,13 +196,26 @@ func (s *whisperSession) processChunk() error {
 		return fmt.Errorf("whisper process failed: %w", err)
 	}
 
+	processTime := time.Since(start)
+	log.Debug().
+		Dur("process_time", processTime).
+		Float64("realtime_factor", processTime.Seconds()/duration).
+		Msg("Whisper processing complete")
+
 	// Get transcription segments
+	segmentCount := 0
 	for {
 		segment, err := context.NextSegment()
 		if err != nil {
 			break // EOF or error
 		}
 		text := segment.Text
+		segmentCount++
+
+		log.Debug().
+			Str("text", text).
+			Int("segment", segmentCount).
+			Msg("Got transcription segment")
 
 		// Send as final
 		select {
@@ -204,8 +227,13 @@ func (s *whisperSession) processChunk() error {
 			return nil
 		default:
 			// Drop if channel full
+			log.Warn().Msg("Finals channel full, dropping segment")
 		}
 	}
+
+	log.Debug().
+		Int("segments", segmentCount).
+		Msg("Finished processing chunk")
 
 	s.mu.Lock()
 	s.processing = false
@@ -223,37 +251,54 @@ func (s *whisperSession) Finals() <-chan string {
 }
 
 func (s *whisperSession) Close() error {
+	log.Debug().Msg("Closing whisper session")
+
 	// Signal done first
 	close(s.done)
 
 	// Wait for any ongoing processing to finish
 	s.mu.Lock()
+	waitCount := 0
 	for s.processing {
 		s.mu.Unlock()
 		time.Sleep(10 * time.Millisecond)
+		waitCount++
+		if waitCount%100 == 0 {
+			log.Debug().Int("wait_ms", waitCount*10).Msg("Still waiting for processing to complete")
+		}
 		s.mu.Lock()
 	}
 
 	hasRemaining := len(s.samples) > 0
+	remainingSamples := len(s.samples)
 	s.mu.Unlock()
 
 	// Process any remaining samples if we have them
 	if hasRemaining {
+		log.Debug().Int("samples", remainingSamples).Msg("Processing remaining samples")
 		s.processChunk()
 	}
 
 	// Wait again to ensure final processChunk completes
 	s.mu.Lock()
+	waitCount = 0
 	for s.processing {
 		s.mu.Unlock()
 		time.Sleep(10 * time.Millisecond)
+		waitCount++
+		if waitCount%100 == 0 {
+			log.Debug().Int("wait_ms", waitCount*10).Msg("Still waiting for final processing to complete")
+		}
 		s.mu.Lock()
 	}
 	s.mu.Unlock()
+
+	log.Debug().Msg("Closing channels")
 
 	// Now safe to close channels
 	close(s.partials)
 	close(s.finals)
 
+	log.Debug().Msg("Session closed")
 	return nil
 }

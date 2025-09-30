@@ -27,6 +27,7 @@ type UI struct {
 	mModels      *systray.MenuItem
 	mPastePrefer *systray.MenuItem
 	mRunAtLogin  *systray.MenuItem
+	mDebugLog    *systray.MenuItem
 }
 
 // Status update methods for the app to call
@@ -88,6 +89,7 @@ func (u *UI) onReady() {
 	systray.AddSeparator()
 	u.mPastePrefer = systray.AddMenuItemCheckbox("Prefer Paste", "Use clipboard paste", u.cfg.Inject.PreferPaste)
 	u.mRunAtLogin = systray.AddMenuItemCheckbox("Run at Login", "Start on system boot", u.cfg.RunAtLogin)
+	u.mDebugLog = systray.AddMenuItemCheckbox("Debug Logging", "Enable detailed debug logs", u.cfg.LogLevel == "debug")
 
 	systray.AddSeparator()
 	mLogs := systray.AddMenuItem("Open Logs", "View application logs")
@@ -107,6 +109,8 @@ func (u *UI) handleEvents(mLogs, mAbout, mQuit *systray.MenuItem) {
 			u.togglePastePrefer()
 		case <-u.mRunAtLogin.ClickedCh:
 			u.toggleRunAtLogin()
+		case <-u.mDebugLog.ClickedCh:
+			u.toggleDebugLog()
 		case <-mLogs.ClickedCh:
 			u.openLogs()
 		case <-mAbout.ClickedCh:
@@ -231,6 +235,19 @@ func (u *UI) toggleRunAtLogin() {
 	}
 	u.cfg.Save()
 	// TODO: Platform-specific login item registration
+}
+
+func (u *UI) toggleDebugLog() {
+	if u.cfg.LogLevel == "debug" {
+		u.cfg.LogLevel = "info"
+		u.mDebugLog.Uncheck()
+		u.log.Info().Msg("Disabled debug logging (restart required)")
+	} else {
+		u.cfg.LogLevel = "debug"
+		u.mDebugLog.Check()
+		u.log.Info().Msg("Enabled debug logging (restart required)")
+	}
+	u.cfg.Save()
 }
 
 func (u *UI) openLogs() {

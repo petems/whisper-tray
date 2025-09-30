@@ -18,6 +18,7 @@ type Config struct {
 	StreamPartials bool          `json:"stream_partials"`
 	EnterOnFinal   bool          `json:"enter_on_final"`
 	RunAtLogin     bool          `json:"run_at_login"`
+	LogLevel       string        `json:"log_level"` // "info" or "debug"
 }
 
 type AudioConfig struct {
@@ -62,6 +63,7 @@ func Load() (*Config, error) {
 		StreamPartials: false,
 		EnterOnFinal:   false,
 		RunAtLogin:     false,
+		LogLevel:       "info",
 	}
 
 	// Load existing config if it exists

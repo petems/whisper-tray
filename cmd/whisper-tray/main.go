@@ -24,14 +24,16 @@ var (
 )
 
 func main() {
-	// Initialize logger
-	log := logging.New()
-
 	// Load config from XDG/Library/AppData
 	cfg, err := config.Load()
 	if err != nil {
+		// Use default logger if config fails to load
+		log := logging.New()
 		log.Fatal().Err(err).Msg("Failed to load config")
 	}
+
+	// Initialize logger with configured level
+	log := logging.NewWithLevel(cfg.LogLevel)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

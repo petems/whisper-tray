@@ -12,6 +12,11 @@ import (
 
 // New creates a new zerolog logger with console and file output
 func New() zerolog.Logger {
+	return NewWithLevel("info")
+}
+
+// NewWithLevel creates a logger with a specific log level
+func NewWithLevel(level string) zerolog.Logger {
 	logPath := getLogPath()
 
 	// Ensure directory exists
@@ -29,7 +34,20 @@ func New() zerolog.Logger {
 		logFile,
 	)
 
-	return zerolog.New(multi).With().Timestamp().Caller().Logger()
+	// Parse log level
+	logLevel := zerolog.InfoLevel
+	switch level {
+	case "debug":
+		logLevel = zerolog.DebugLevel
+	case "info":
+		logLevel = zerolog.InfoLevel
+	case "warn":
+		logLevel = zerolog.WarnLevel
+	case "error":
+		logLevel = zerolog.ErrorLevel
+	}
+
+	return zerolog.New(multi).With().Timestamp().Caller().Logger().Level(logLevel)
 }
 
 // getLogPath returns platform-specific log file path
