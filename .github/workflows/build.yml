@@ -70,7 +70,7 @@ jobs:
       run: go mod download
 
     - name: Run tests
-      run: go test -v ./...
+      run: go test -mod=mod -v ./...
 
     - name: Build application
       run: make build-mac
@@ -84,7 +84,7 @@ jobs:
       run: |
         CGO_CFLAGS="-I$(pwd)/vendor/whisper.cpp" \
         CGO_LDFLAGS="-L$(pwd)/vendor/whisper.cpp -lwhisper" \
-        go build -ldflags="-s -w -X main.Version=${{ github.ref_name }} -X main.Commit=${{ github.sha }}" \
+        go build -mod=mod -ldflags="-s -w -X main.Version=${{ github.ref_name }} -X main.Commit=${{ github.sha }}" \
         -o bin/${{ matrix.artifact }} ./cmd/whisper-tray
       shell: bash
 
@@ -93,7 +93,7 @@ jobs:
       env:
         CGO_ENABLED: 1
       run: |
-        go build -ldflags="-s -w -X main.Version=${{ github.ref_name }} -X main.Commit=${{ github.sha }}" \
+        go build -mod=mod -ldflags="-s -w -X main.Version=${{ github.ref_name }} -X main.Commit=${{ github.sha }}" \
         -o bin/${{ matrix.artifact }} ./cmd/whisper-tray
       shell: bash
 
