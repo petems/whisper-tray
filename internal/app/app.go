@@ -85,10 +85,13 @@ func (a *App) OnHotkey(pressed bool) {
 			a.stopAndInjectLocked()
 		}
 	case Toggle:
-		if !a.dictating {
-			a.startDictationLocked()
-		} else {
-			a.stopAndInjectLocked()
+		// Only toggle on key press, ignore key release
+		if pressed {
+			if !a.dictating {
+				a.startDictationLocked()
+			} else {
+				a.stopAndInjectLocked()
+			}
 		}
 	}
 }
