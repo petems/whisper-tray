@@ -181,10 +181,10 @@ func (u *UI) buildModeMenu() {
 				// Check this item
 				menuItem.Check()
 				oldMode := u.cfg.Mode
-				u.cfg.Mode = m
-				u.cfg.Save()
-				u.log.Info().Str("from", oldMode).Str("to", m).Msg("Changed mode")
 				u.app.SetMode(m)
+				if oldMode != m {
+					u.log.Info().Str("from", oldMode).Str("to", m).Msg("Changed mode")
+				}
 			}
 		}(mode, item)
 	}

@@ -6,7 +6,10 @@ import (
 	"github.com/petems/whisper-tray/internal/config"
 )
 
-func TestModeConfiguration(t *testing.T) {
+// TestConfigModeField verifies that the Config struct's Mode field
+// can be set to valid mode values. This tests the config data structure
+// only, not the actual mode switching logic in the UI.
+func TestConfigModeField(t *testing.T) {
 	tests := []struct {
 		name         string
 		initialMode  string
@@ -37,36 +40,23 @@ func TestModeConfiguration(t *testing.T) {
 	}
 }
 
-func TestModeSwitch(t *testing.T) {
+// TestConfigModeFieldMutation verifies that the Config struct's Mode field
+// can be mutated. This tests the config data structure only, not the actual
+// mode switching logic in the UI which involves app.SetMode() and UI updates.
+func TestConfigModeFieldMutation(t *testing.T) {
 	cfg := &config.Config{
 		Mode: "PushToTalk",
 	}
 
-	// Simulate switching to Toggle
+	// Mutate field to Toggle
 	cfg.Mode = "Toggle"
 	if cfg.Mode != "Toggle" {
-		t.Errorf("expected mode Toggle after switch, got %s", cfg.Mode)
+		t.Errorf("expected mode Toggle after field mutation, got %s", cfg.Mode)
 	}
 
-	// Simulate switching back to PushToTalk
+	// Mutate field back to PushToTalk
 	cfg.Mode = "PushToTalk"
 	if cfg.Mode != "PushToTalk" {
-		t.Errorf("expected mode PushToTalk after switch, got %s", cfg.Mode)
-	}
-}
-
-func TestValidModes(t *testing.T) {
-	validModes := []string{"PushToTalk", "Toggle"}
-
-	for _, mode := range validModes {
-		t.Run(mode, func(t *testing.T) {
-			cfg := &config.Config{
-				Mode: mode,
-			}
-
-			if cfg.Mode != mode {
-				t.Errorf("expected mode %s to be valid, got %s", mode, cfg.Mode)
-			}
-		})
+		t.Errorf("expected mode PushToTalk after field mutation, got %s", cfg.Mode)
 	}
 }
