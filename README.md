@@ -1,5 +1,7 @@
 # WhisperTray
 
+https://github.com/user-attachments/assets/719949b0-c266-411b-b897-6a02f4786981
+
 Local, privacy-focused voice dictation for macOS (with cross-platform support planned).
 
 ## Status
